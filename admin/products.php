@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $cat_id      = (int)$_POST['category_id'];
     $desc        = sanitize($conn, $_POST['description'] ?? '');
     $unit        = sanitize($conn, $_POST['unit'] ?? 'đôi');
-    $stock       = (int)$_POST['stock_quantity'];
+    $stock       = (int)($_POST['stock_quantity'] ?? 0);
     $profit_rate = (float)$_POST['profit_rate'];
     $status      = sanitize($conn, $_POST['status'] ?? 'active');
     // New attribute fields
@@ -324,10 +324,7 @@ function updateSizeLabel(cb){
                         <label class="form-label">Đơn vị</label>
                         <input type="text" name="unit" class="form-control" value="đôi">
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">SL ban đầu</label>
-                        <input type="number" name="stock_quantity" class="form-control" value="0" min="0">
-                    </div>
+                    <input type="hidden" name="stock_quantity" value="0">
                     <div class="col-md-2">
                         <label class="form-label">% Lợi nhuận</label>
                         <div class="input-group">
