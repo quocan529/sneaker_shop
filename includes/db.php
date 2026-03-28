@@ -2,7 +2,7 @@
 // includes/db.php
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-define('DB_PASS', 'Quocan@529529');
+define('DB_PASS', '');
 define('DB_NAME', 'sneaker_shop');
 
 // Session names - admin uses separate cookie to allow simultaneous login
