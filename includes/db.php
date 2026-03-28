@@ -2,7 +2,7 @@
 // includes/db.php
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_PASS', 'Quocan@529529');
 define('DB_NAME', 'sneaker_shop');
 
 // Session names - admin uses separate cookie to allow simultaneous login
@@ -75,7 +75,19 @@ function redirect($url) {
 }
 
 function generateCode($prefix) {
-    return $prefix . date('YmdHis') . rand(100, 999);
+    global $conn;
+    // Tạo mã theo format: PREFIX + YYYYMMDD + số thứ tự 3 chữ số (toàn cục)
+    // Ví dụ: DH20260328001, PN20260328001
+    $date = date('Ymd');
+    if ($prefix === 'DH') {
+        $count = $conn->query("SELECT COUNT(*) as c FROM orders")->fetch_assoc()['c'];
+    } elseif ($prefix === 'PN') {
+        $count = $conn->query("SELECT COUNT(*) as c FROM import_receipts")->fetch_assoc()['c'];
+    } else {
+        return $prefix . date('YmdHis') . rand(100, 999);
+    }
+    $seq = str_pad($count + 1, 3, '0', STR_PAD_LEFT);
+    return $prefix . $date . $seq;
 }
 
 // Start USER session (only if not already started by admin side)

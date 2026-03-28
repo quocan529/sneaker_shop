@@ -60,7 +60,7 @@ $categories = $conn->query("SELECT c.*, COUNT(p.id) as product_count
     <div class="mb-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="section-title mb-0">Sản Phẩm Mới Nhất</h3>
-            <a href="search.php" class="btn btn-outline-secondary btn-sm">Xem tất cả <i class="bi bi-arrow-right"></i></a>
+            <a href="category.php" class="btn btn-outline-secondary btn-sm">Xem tất cả <i class="bi bi-arrow-right"></i></a>
         </div>
         <div class="row g-4">
             <?php while ($p = $products->fetch_assoc()): ?>
