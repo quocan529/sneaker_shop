@@ -45,6 +45,7 @@ $pageTitle = 'Đăng nhập';
 ?>
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,12 +53,27 @@ $pageTitle = 'Đăng nhập';
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
-        body { background: linear-gradient(135deg,#1a1a2e,#0f3460); min-height: 100vh; }
-        .card { border-radius: 16px; }
-        .btn-primary { background:#ff6b35; border-color:#ff6b35; }
-        .btn-primary:hover { background:#e55a24; border-color:#e55a24; }
+        body {
+            background: linear-gradient(135deg, #1a1a2e, #0f3460);
+            min-height: 100vh;
+        }
+
+        .card {
+            border-radius: 16px;
+        }
+
+        .btn-primary {
+            background: #ff6b35;
+            border-color: #ff6b35;
+        }
+
+        .btn-primary:hover {
+            background: #e55a24;
+            border-color: #e55a24;
+        }
     </style>
 </head>
+
 <body class="d-flex align-items-center justify-content-center">
     <div class="container">
         <div class="row justify-content-center">
@@ -71,7 +87,7 @@ $pageTitle = 'Đăng nhập';
                     <h4 class="text-center mb-4 fw-bold">Đăng nhập</h4>
 
                     <?php if ($error): ?>
-                    <div class="alert alert-danger py-2"><i class="bi bi-exclamation-circle me-2"></i><?= $error ?></div>
+                        <div class="alert alert-danger py-2"><i class="bi bi-exclamation-circle me-2"></i><?= $error ?></div>
                     <?php endif; ?>
 
                     <form method="POST">
@@ -105,4 +121,5 @@ $pageTitle = 'Đăng nhập';
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

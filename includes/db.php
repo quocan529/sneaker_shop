@@ -75,19 +75,7 @@ function redirect($url) {
 }
 
 function generateCode($prefix) {
-    global $conn;
-    // Tạo mã theo format: PREFIX + YYYYMMDD + số thứ tự 3 chữ số (toàn cục)
-    // Ví dụ: DH20260328001, PN20260328001
-    $date = date('Ymd');
-    if ($prefix === 'DH') {
-        $count = $conn->query("SELECT COUNT(*) as c FROM orders")->fetch_assoc()['c'];
-    } elseif ($prefix === 'PN') {
-        $count = $conn->query("SELECT COUNT(*) as c FROM import_receipts")->fetch_assoc()['c'];
-    } else {
-        return $prefix . date('YmdHis') . rand(100, 999);
-    }
-    $seq = str_pad($count + 1, 3, '0', STR_PAD_LEFT);
-    return $prefix . $date . $seq;
+    return $prefix . date('YmdHis') . rand(100, 999);
 }
 
 // Start USER session (only if not already started by admin side)

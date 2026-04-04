@@ -1,5 +1,4 @@
 <?php
-// my_orders.php — load db.php first so redirect works before HTML
 require_once 'includes/db.php';
 if (!isLoggedIn()) redirect('login.php?redirect=my_orders.php');
 
@@ -10,13 +9,14 @@ $user_id = $_SESSION['user_id'];
 $orders = $conn->query("SELECT * FROM orders WHERE user_id=$user_id ORDER BY created_at DESC");
 
 $statusLabels = [
-    'pending'   => ['Chờ xử lý',   'warning'],
-    'confirmed' => ['Đã xác nhận', 'info'],
-    'delivered' => ['Đã giao',     'success'],
-    'cancelled' => ['Đã huỷ',      'danger'],
+    'awaiting_payment' => ['Chờ thanh toán', 'secondary'],
+    'pending'          => ['Chờ xử lý',      'warning'],
+    'confirmed'        => ['Đã xác nhận',    'info'],
+    'delivered'        => ['Đã giao',        'success'],
+    'cancelled'        => ['Đã huỷ',         'danger'],
 ];
 
-$detail_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$detail_id   = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $orderDetail = null;
 if ($detail_id > 0) {
     $r = $conn->query("SELECT * FROM orders WHERE id=$detail_id AND user_id=$user_id");
@@ -28,14 +28,42 @@ if ($detail_id > 0) {
     <h3 class="section-title mb-4">Đơn Hàng Của Tôi</h3>
 
     <?php if ($orderDetail): ?>
-    <!-- Order Detail View -->
+    <!-- ── Chi tiết đơn hàng ── -->
     <div class="mb-3">
         <a href="my_orders.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Quay lại</a>
     </div>
+
+    <?php
+    [$label, $color] = $statusLabels[$orderDetail['status']] ?? ['Không rõ', 'secondary'];
+    $is_awaiting = ($orderDetail['status'] === 'awaiting_payment');
+    ?>
+
+    <!-- Banner Chờ thanh toán -->
+    <?php if ($is_awaiting): ?>
+    <div class="alert border-0 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3"
+         style="background:#fff8e1;border-left:4px solid #ffc107!important;border-radius:10px;border:none">
+        <div>
+            <i class="bi bi-clock-history me-2 text-warning fs-5"></i>
+            <strong>Đơn hàng chưa được thanh toán.</strong>
+            <span class="text-muted ms-1">Vui lòng thanh toán để đơn được xử lý.</span>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="checkout.php?repay=<?= $orderDetail['id'] ?>"
+               class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i>Đổi phương thức thanh toán
+            </a>
+            <a href="zalo_pay/zalopay_create.php?order_id=<?= $orderDetail['id'] ?>"
+               class="btn btn-sm text-white fw-semibold"
+               style="background:#0068ff;border-color:#0068ff">
+                <i class="bi bi-phone me-1"></i>Thanh toán ngay
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <div class="card border-0 shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
             <strong>Đơn hàng: <?= htmlspecialchars($orderDetail['order_code']) ?></strong>
-            <?php list($label, $color) = $statusLabels[$orderDetail['status']]; ?>
             <span class="badge bg-<?= $color ?>"><?= $label ?></span>
         </div>
         <div class="card-body">
@@ -49,10 +77,8 @@ if ($detail_id > 0) {
                 <div class="col-md-6">
                     <h6 class="fw-bold">Chi tiết đơn hàng</h6>
                     <p class="mb-1">Ngày đặt: <?= date('d/m/Y H:i', strtotime($orderDetail['created_at'])) ?></p>
-                    <?php
-                    $pm = ['cash'=>'Tiền mặt (COD)','transfer'=>'Chuyển khoản','online'=>'Trực tuyến'];
-                    ?>
-                    <p class="mb-0">Thanh toán: <?= $pm[$orderDetail['payment_method']] ?></p>
+                    <?php $pm = ['cash'=>'Tiền mặt (COD)','transfer'=>'Chuyển khoản','online'=>'Trực tuyến (ZaloPay)']; ?>
+                    <p class="mb-0">Thanh toán: <?= $pm[$orderDetail['payment_method']] ?? $orderDetail['payment_method'] ?></p>
                 </div>
             </div>
 
@@ -84,7 +110,7 @@ if ($detail_id > 0) {
     </div>
 
     <?php else: ?>
-    <!-- Order List -->
+    <!-- ── Danh sách đơn hàng ── -->
     <?php if ($orders->num_rows === 0): ?>
     <div class="text-center py-5">
         <i class="bi bi-bag-x" style="font-size:5rem;color:#ccc"></i>
@@ -106,15 +132,16 @@ if ($detail_id > 0) {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php while ($ord = $orders->fetch_assoc()):
-                        list($label, $color) = $statusLabels[$ord['status']];
-                        $pm = ['cash'=>'COD','transfer'=>'CK','online'=>'Online'];
+                    <?php
+                    $pm = ['cash'=>'COD','transfer'=>'CK','online'=>'ZaloPay'];
+                    while ($ord = $orders->fetch_assoc()):
+                        [$label, $color] = $statusLabels[$ord['status']] ?? ['Không rõ','secondary'];
                     ?>
                     <tr>
                         <td><strong><?= htmlspecialchars($ord['order_code']) ?></strong></td>
                         <td><?= date('d/m/Y H:i', strtotime($ord['created_at'])) ?></td>
                         <td class="text-end fw-bold" style="color:#ff6b35"><?= formatPrice($ord['total_amount']) ?></td>
-                        <td><?= $pm[$ord['payment_method']] ?></td>
+                        <td><?= $pm[$ord['payment_method']] ?? $ord['payment_method'] ?></td>
                         <td><span class="badge bg-<?= $color ?>"><?= $label ?></span></td>
                         <td class="text-center">
                             <a href="my_orders.php?id=<?= $ord['id'] ?>" class="btn btn-sm btn-outline-primary">

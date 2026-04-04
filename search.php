@@ -5,8 +5,8 @@ $pageTitle = 'Tìm kiếm';
 
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $cat_id = isset($_GET['cat_id']) ? (int)$_GET['cat_id'] : 0;
-$min_price = isset($_GET['min_price']) ? (float)str_replace('.', '', $_GET['min_price']) : 0;
-$max_price = isset($_GET['max_price']) ? (float)str_replace('.', '', $_GET['max_price']) : 0;
+$min_price = isset($_GET['min_price']) ? (float)$_GET['min_price'] : 0;
+$max_price = isset($_GET['max_price']) ? (float)$_GET['max_price'] : 0;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $per_page = 12;
 $offset = ($page - 1) * $per_page;
@@ -66,11 +66,11 @@ $params = http_build_query(array_filter(['q'=>$q,'cat_id'=>$cat_id,'min_price'=>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Giá từ (₫)</label>
-                                <input type="text" name="min_price" class="form-control price-fmt" placeholder="VD: 500.000" value="<?= $min_price ? number_format($min_price, 0, ',', '.') : '' ?>" autocomplete="off">
+                                <input type="number" name="min_price" class="form-control" placeholder="VD: 500000" value="<?= $min_price ?: '' ?>">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Giá đến (₫)</label>
-                                <input type="text" name="max_price" class="form-control price-fmt" placeholder="VD: 5.000.000" value="<?= $max_price ? number_format($max_price, 0, ',', '.') : '' ?>" autocomplete="off">
+                                <input type="number" name="max_price" class="form-control" placeholder="VD: 5000000" value="<?= $max_price ?: '' ?>">
                             </div>
                         </div>
                     </div>
@@ -137,27 +137,4 @@ $params = http_build_query(array_filter(['q'=>$q,'cat_id'=>$cat_id,'min_price'=>
     <?php endif; ?>
 </div>
 
-
-<script>
-function formatNumVN(raw) {
-    raw = String(raw).replace(/[^0-9]/g, '');
-    if (!raw) return '';
-    return parseInt(raw).toLocaleString('vi-VN').replace(/,/g, '.');
-}
-document.querySelectorAll('.price-fmt').forEach(function(el) {
-    el.addEventListener('input', function() {
-        var raw = this.value.replace(/[^0-9]/g, '');
-        this.value = raw ? formatNumVN(raw) : '';
-    });
-});
-// Strip dots trước khi submit form tìm kiếm
-var searchForm = document.getElementById('searchForm');
-if (searchForm) {
-    searchForm.addEventListener('submit', function() {
-        this.querySelectorAll('.price-fmt').forEach(function(inp) {
-            inp.value = inp.value.replace(/\./g, '');
-        });
-    });
-}
-</script>
 <?php require_once 'includes/footer.php'; ?>
