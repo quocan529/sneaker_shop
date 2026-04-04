@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $qty   = (int)$item['qty'];
                 $price = (float)$item['price'];
                 $conn->query("INSERT INTO order_details (order_id,product_id,quantity,unit_price) VALUES ($order_id,$pid,$qty,$price)");
-                $conn->query("UPDATE products SET stock_quantity = stock_quantity - $qty WHERE id=$pid AND stock_quantity >= $qty");
+                // Không trừ tồn kho khi đặt hàng. Tồn kho chỉ bị trừ khi đơn chuyển sang "Đã giao".
             }
             $_SESSION['cart'] = [];
             redirect('checkout.php?success=' . $order_id);

@@ -37,7 +37,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'detail') {
             JOIN orders o ON od.order_id = o.id
             JOIN products p ON od.product_id = p.id
             WHERE od.product_id = $pid
-              AND o.status IN ('pending','confirmed','delivered')
+              AND o.status = 'delivered'
               AND DATE(o.created_at) BETWEEN '$from' AND '$to'
             ORDER BY o.created_at
         ");
@@ -85,10 +85,10 @@ $stocks = $conn->query("SELECT p.id, p.code, p.name, c.name as cat_name, p.stock
               WHERE id2.product_id=p.id AND ir2.status='completed' AND ir2.import_date > '$stock_date'), 0) as imported_after,
     COALESCE((SELECT SUM(od.quantity) FROM order_details od
               JOIN orders o ON od.order_id=o.id
-              WHERE od.product_id=p.id AND o.status NOT IN ('cancelled')), 0) as total_sold_all,
+              WHERE od.product_id=p.id AND o.status = 'delivered'), 0) as total_sold_all,
     COALESCE((SELECT SUM(od.quantity) FROM order_details od
               JOIN orders o ON od.order_id=o.id
-              WHERE od.product_id=p.id AND o.status NOT IN ('cancelled') AND DATE(o.created_at) > '$stock_date'), 0) as sold_after
+              WHERE od.product_id=p.id AND o.status = 'delivered' AND DATE(o.created_at) > '$stock_date'), 0) as sold_after
 FROM products p JOIN categories c ON p.category_id=c.id
 WHERE p.status='active' $where_cat
 ORDER BY p.name
@@ -105,11 +105,11 @@ $report = $conn->query("SELECT p.id, p.code, p.name, c.name as cat_name,
     COALESCE((SELECT SUM(id2.quantity) FROM import_details id2 JOIN import_receipts ir2 ON id2.receipt_id=ir2.id
               WHERE id2.product_id=p.id AND ir2.status='completed' AND ir2.import_date BETWEEN '$rep_from' AND '$rep_to'), 0) as qty_imported,
     COALESCE((SELECT SUM(od.quantity) FROM order_details od JOIN orders o ON od.order_id=o.id
-              WHERE od.product_id=p.id AND o.status IN ('pending','confirmed','delivered')
+              WHERE od.product_id=p.id AND o.status = 'delivered'
               AND DATE(o.created_at) BETWEEN '$rep_from' AND '$rep_to'), 0) as qty_sold,
     p.stock_quantity,
     COALESCE((SELECT SUM(od2.quantity) FROM order_details od2 JOIN orders o2 ON od2.order_id=o2.id
-              WHERE od2.product_id=p.id AND o2.status IN ('pending','confirmed','delivered')), 0) as total_sold_ever
+              WHERE od2.product_id=p.id AND o2.status = 'delivered'), 0) as total_sold_ever
 FROM products p JOIN categories c ON p.category_id=c.id
 WHERE p.status='active'
 ORDER BY qty_sold DESC, p.name
