@@ -76,18 +76,24 @@ function redirect($url) {
 
 function generateCode($prefix) {
     global $conn;
-    // Tạo mã theo format: PREFIX + YYYYMMDD + số thứ tự 3 chữ số (toàn cục)
-    // Ví dụ: DH20260328001, PN20260328001
+    // Tạo mã theo format: PREFIX + YYYYMMDD + số thứ tự 3 chữ số
+    // Dùng MAX để tránh trùng mã khi có phiếu bị xoá hoặc tạo nhiều trong 1 ngày
     $date = date('Ymd');
+
     if ($prefix === 'DH') {
-        $count = $conn->query("SELECT COUNT(*) as c FROM orders")->fetch_assoc()['c'];
+        $table = 'orders';
+        $col   = 'order_code';
     } elseif ($prefix === 'PN') {
-        $count = $conn->query("SELECT COUNT(*) as c FROM import_receipts")->fetch_assoc()['c'];
+        $table = 'import_receipts';
+        $col   = 'receipt_code';
     } else {
         return $prefix . date('YmdHis') . rand(100, 999);
     }
-    $seq = str_pad($count + 1, 3, '0', STR_PAD_LEFT);
-    return $prefix . $date . $seq;
+
+    $like = $conn->real_escape_string($prefix . $date . '%');
+    $row  = $conn->query("SELECT MAX($col) as max_code FROM $table WHERE $col LIKE '$like'")->fetch_assoc();
+    $seq  = $row['max_code'] ? ((int)substr($row['max_code'], -3) + 1) : 1;
+    return $prefix . $date . str_pad($seq, 3, '0', STR_PAD_LEFT);
 }
 
 // Start USER session (only if not already started by admin side)
