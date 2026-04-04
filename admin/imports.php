@@ -10,20 +10,26 @@ if (isset($_GET['complete'])) {
     $id = (int)$_GET['complete'];
     $receipt = $conn->query("SELECT * FROM import_receipts WHERE id=$id AND status='pending'")->fetch_assoc();
     if ($receipt) {
-        // Update stock and import price (weighted average)
-        $details = $conn->query("SELECT * FROM import_details WHERE receipt_id=$id");
-        while ($d = $details->fetch_assoc()) {
-            $pid = $d['product_id'];
-            $p = $conn->query("SELECT stock_quantity, import_price FROM products WHERE id=$pid")->fetch_assoc();
-            $old_qty   = $p['stock_quantity'];
-            $old_price = $p['import_price'];
-            $new_qty   = $d['quantity'];
-            $new_price = $d['import_price'];
-            $avg_price = ($old_qty + $new_qty) > 0 ? ($old_qty * $old_price + $new_qty * $new_price) / ($old_qty + $new_qty) : $new_price;
-            $conn->query("UPDATE products SET stock_quantity=stock_quantity+$new_qty, import_price=$avg_price WHERE id=$pid");
+        // Kiểm tra phiếu có sản phẩm không - không cho hoàn thành phiếu rỗng
+        $item_count = $conn->query("SELECT COUNT(*) as c FROM import_details WHERE receipt_id=$id")->fetch_assoc()['c'];
+        if ($item_count == 0) {
+            $msg = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Không thể hoàn thành phiếu nhập rỗng. Vui lòng thêm ít nhất một sản phẩm trước.</div>';
+        } else {
+            // Update stock and import price (weighted average)
+            $details = $conn->query("SELECT * FROM import_details WHERE receipt_id=$id");
+            while ($d = $details->fetch_assoc()) {
+                $pid = $d['product_id'];
+                $p = $conn->query("SELECT stock_quantity, import_price FROM products WHERE id=$pid")->fetch_assoc();
+                $old_qty   = $p['stock_quantity'];
+                $old_price = $p['import_price'];
+                $new_qty   = $d['quantity'];
+                $new_price = $d['import_price'];
+                $avg_price = ($old_qty + $new_qty) > 0 ? ($old_qty * $old_price + $new_qty * $new_price) / ($old_qty + $new_qty) : $new_price;
+                $conn->query("UPDATE products SET stock_quantity=stock_quantity+$new_qty, import_price=$avg_price WHERE id=$pid");
+            }
+            $conn->query("UPDATE import_receipts SET status='completed' WHERE id=$id");
+            $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Phiếu nhập đã được hoàn thành. Tồn kho đã được cập nhật.</div>';
         }
-        $conn->query("UPDATE import_receipts SET status='completed' WHERE id=$id");
-        $msg = '<div class="alert alert-success">Phiếu nhập đã được hoàn thành. Tồn kho đã được cập nhật.</div>';
     }
 }
 
@@ -46,7 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $user_id = $_SESSION['user_id'];
         $conn->query("INSERT INTO import_receipts (receipt_code,import_date,notes,created_by) VALUES ('$code','$date','$notes',$user_id)");
         $rid = $conn->insert_id;
-        $msg = '<div class="alert alert-success">Đã tạo phiếu nhập <strong>'.$code.'</strong>. <a href="imports.php?edit='.$rid.'">Thêm sản phẩm vào phiếu →</a></div>';
+        // Tự động chuyển sang trang thêm sản phẩm vào phiếu
+        echo '<script>window.location.href = "imports.php?edit=' . $rid . '";</script>';
+        exit;
     }
 
     if ($_POST['action'] === 'add_item') {
@@ -114,17 +122,34 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
     <div class="card-body">
         <?php if ($edit_receipt['status'] === 'pending'): ?>
         <!-- Add item form -->
-        <form method="POST" class="row g-3 mb-4 p-3 bg-light rounded">
+        <?php
+        // Build product list JSON for JS combobox
+        $products_list->data_seek(0);
+        $prod_json = [];
+        while ($p = $products_list->fetch_assoc()) {
+            $prod_json[] = [
+                'id'   => $p['id'],
+                'label'=> '[' . $p['code'] . '] ' . $p['name']
+            ];
+        }
+        ?>
+        <form method="POST" class="row g-3 mb-4 p-3 bg-light rounded" id="addItemForm">
             <input type="hidden" name="action" value="add_item">
             <input type="hidden" name="receipt_id" value="<?= $edit_receipt['id'] ?>">
             <div class="col-md-5">
                 <label class="form-label">Sản phẩm</label>
-                <select name="product_id" class="form-select" required>
-                    <option value="">-- Chọn sản phẩm --</option>
-                    <?php while ($p = $products_list->fetch_assoc()): ?>
-                    <option value="<?= $p['id'] ?>">[<?= htmlspecialchars($p['code']) ?>] <?= htmlspecialchars($p['name']) ?></option>
-                    <?php endwhile; ?>
-                </select>
+                <!-- Searchable combobox -->
+                <div class="position-relative" id="prodComboWrap">
+                    <input type="text" id="prodComboInput" class="form-control"
+                           placeholder="Nhập mã hoặc tên để tìm..." autocomplete="off">
+                    <input type="hidden" name="product_id" id="prodComboValue">
+                    <div id="prodComboDropdown"
+                         style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050;
+                                max-height:220px; overflow-y:auto; background:#fff;
+                                border:1px solid #ced4da; border-top:none; border-radius:0 0 6px 6px;
+                                box-shadow:0 4px 12px rgba(0,0,0,.1);">
+                    </div>
+                </div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Số lượng</label>
@@ -138,6 +163,74 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
                 <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus"></i></button>
             </div>
         </form>
+
+        <script>
+        (function() {
+            var products = <?= json_encode($prod_json, JSON_UNESCAPED_UNICODE) ?>;
+            var input    = document.getElementById('prodComboInput');
+            var hidden   = document.getElementById('prodComboValue');
+            var dropdown = document.getElementById('prodComboDropdown');
+
+            function renderDropdown(list) {
+                if (!list.length) {
+                    dropdown.innerHTML = '<div style="padding:8px 12px;color:#888;font-size:.9rem">Không tìm thấy sản phẩm</div>';
+                } else {
+                    dropdown.innerHTML = list.map(function(p) {
+                        return '<div class="combo-item" data-id="' + p.id + '" ' +
+                               'style="padding:8px 12px;cursor:pointer;font-size:.9rem;border-bottom:1px solid #f0f0f0">' +
+                               p.label + '</div>';
+                    }).join('');
+                    dropdown.querySelectorAll('.combo-item').forEach(function(el) {
+                        el.addEventListener('mousedown', function(e) {
+                            e.preventDefault(); // prevent blur before click
+                            input.value  = this.dataset.label || this.textContent;
+                            hidden.value = this.dataset.id;
+                            // store display label
+                            input.dataset.selected = this.textContent;
+                            dropdown.style.display = 'none';
+                        });
+                        el.addEventListener('mouseenter', function() { this.style.background = '#fff3ee'; });
+                        el.addEventListener('mouseleave', function() { this.style.background = ''; });
+                    });
+                }
+                dropdown.style.display = 'block';
+            }
+
+            input.addEventListener('focus', function() {
+                var q = this.value.trim().toLowerCase();
+                var filtered = q
+                    ? products.filter(function(p) { return p.label.toLowerCase().includes(q); })
+                    : products;
+                renderDropdown(filtered);
+            });
+
+            input.addEventListener('input', function() {
+                hidden.value = ''; // clear selection when typing
+                var q = this.value.trim().toLowerCase();
+                var filtered = q
+                    ? products.filter(function(p) { return p.label.toLowerCase().includes(q); })
+                    : products;
+                renderDropdown(filtered);
+            });
+
+            input.addEventListener('blur', function() {
+                // If nothing selected, clear field
+                setTimeout(function() { dropdown.style.display = 'none'; }, 150);
+            });
+
+            // Validate: must pick from list
+            document.getElementById('addItemForm').addEventListener('submit', function(e) {
+                if (!hidden.value) {
+                    e.preventDefault();
+                    input.focus();
+                    input.classList.add('is-invalid');
+                    input.placeholder = 'Vui lòng chọn sản phẩm từ danh sách!';
+                } else {
+                    input.classList.remove('is-invalid');
+                }
+            });
+        })();
+        </script>
         <?php endif; ?>
 
         <!-- Items table -->
@@ -181,9 +274,17 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
 
         <?php if ($edit_receipt['status'] === 'pending'): ?>
         <div class="text-end">
-            <a href="imports.php?complete=<?= $edit_receipt['id'] ?>" class="btn btn-success" onclick="return confirm('Hoàn thành phiếu nhập? Tồn kho sẽ được cập nhật.')">
+            <?php if ($subtotal > 0): ?>
+            <a href="imports.php?complete=<?= $edit_receipt['id'] ?>" class="btn btn-success"
+               onclick="return confirm('Hoàn thành phiếu nhập? Tồn kho sẽ được cập nhật.')">
                 <i class="bi bi-check-circle me-2"></i>Hoàn thành phiếu nhập
             </a>
+            <?php else: ?>
+            <button class="btn btn-success" disabled title="Thêm ít nhất một sản phẩm trước khi hoàn thành">
+                <i class="bi bi-check-circle me-2"></i>Hoàn thành phiếu nhập
+            </button>
+            <div class="text-muted small mt-1"><i class="bi bi-info-circle me-1"></i>Vui lòng thêm ít nhất một sản phẩm trước khi hoàn thành phiếu.</div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
     </div>

@@ -45,12 +45,14 @@ $params = http_build_query(array_filter(['q'=>$q,'cat_id'=>$cat_id,'min_price'=>
                     </div>
 
                     <div class="col-12">
-                        <button class="btn btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advSearch">
-                            <i class="bi bi-sliders me-1"></i>Tìm kiếm nâng cao
+                        <button class="btn btn-link text-decoration-none p-0 small" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#advSearch" aria-expanded="true"
+                                id="advToggleBtn">
+                            <span id="advToggleLabel">Ẩn bộ lọc nâng cao</span>
                         </button>
                     </div>
 
-                    <div class="col-12 collapse <?= ($cat_id || $min_price || $max_price) ? 'show' : '' ?>" id="advSearch">
+                    <div class="col-12 collapse show" id="advSearch">
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Danh mục</label>
@@ -150,7 +152,13 @@ document.querySelectorAll('.price-fmt').forEach(function(el) {
         this.value = raw ? formatNumVN(raw) : '';
     });
 });
-// Strip dots trước khi submit form tìm kiếm
+// Toggle label cho nút ẩn/hiện bộ lọc nâng cao
+var advEl = document.getElementById('advSearch');
+var advLabel = document.getElementById('advToggleLabel');
+if (advEl && advLabel) {
+    advEl.addEventListener('show.bs.collapse', function() { advLabel.textContent = 'Ẩn bộ lọc nâng cao'; });
+    advEl.addEventListener('hide.bs.collapse', function() { advLabel.textContent = 'Hiện bộ lọc nâng cao'; });
+}
 var searchForm = document.getElementById('searchForm');
 if (searchForm) {
     searchForm.addEventListener('submit', function() {

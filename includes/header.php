@@ -50,7 +50,7 @@ $cats = $conn->query("SELECT * FROM categories ORDER BY name");
                     </ul>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/sneaker_shop/search.php">Tìm kiếm</a>
+                    <a class="nav-link" href="/sneaker_shop/search.php">Tìm kiếm nâng cao</a>
                 </li>
             </ul>
             <form class="d-flex me-3" action="/sneaker_shop/search.php" method="GET">
