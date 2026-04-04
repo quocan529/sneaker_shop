@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $rid   = (int)$_POST['receipt_id'];
         $pid   = (int)$_POST['product_id'];
         $qty   = (int)$_POST['quantity'];
-        $price = (float)str_replace('.', '', $_POST['import_price'] ?? '0');
+        $price = (float)$_POST['import_price'];
         if ($pid && $qty > 0 && $price > 0) {
             // Check if product already in receipt, update qty
             $existing = $conn->query("SELECT id FROM import_details WHERE receipt_id=$rid AND product_id=$pid")->fetch_assoc();
@@ -132,7 +132,7 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
             </div>
             <div class="col-md-3">
                 <label class="form-label">Giá nhập (₫)</label>
-                <input type="text" name="import_price" class="form-control price-fmt" placeholder="VD: 1.500.000" required autocomplete="off">
+                <input type="number" name="import_price" class="form-control" min="0" step="1000" required>
             </div>
             <div class="col-md-1 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus"></i></button>
@@ -282,31 +282,4 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
     <?php endif; ?>
 </div>
 
-
-<script>
-// ── Định dạng số có dấu chấm ngàn (1.000.000) ────────────────────────────
-function formatNumVN(raw) {
-    raw = String(raw).replace(/[^0-9]/g, '');
-    if (!raw) return '';
-    return parseInt(raw).toLocaleString('vi-VN').replace(/,/g, '.');
-}
-document.querySelectorAll('.price-fmt').forEach(function(el) {
-    // Format on input
-    el.addEventListener('input', function() {
-        var pos = this.selectionStart;
-        var oldLen = this.value.length;
-        var raw = this.value.replace(/[^0-9]/g, '');
-        this.value = raw ? formatNumVN(raw) : '';
-        // Adjust cursor
-        var diff = this.value.length - oldLen;
-        this.setSelectionRange(pos + diff, pos + diff);
-    });
-    // Strip dots before form submit
-    this.closest('form').addEventListener('submit', function() {
-        this.querySelectorAll('.price-fmt').forEach(function(inp) {
-            inp.value = inp.value.replace(/\./g, '');
-        });
-    }, { once: false });
-});
-</script>
 <?php adminFooter(); ?>
