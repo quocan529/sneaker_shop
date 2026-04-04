@@ -153,11 +153,11 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
             </div>
             <div class="col-md-3">
                 <label class="form-label">Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="1" required>
+                <input type="number" name="quantity" id="prodQty" class="form-control" min="1">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Giá nhập (₫)</label>
-                <input type="text" name="import_price" class="form-control price-fmt" placeholder="VD: 1.500.000" required autocomplete="off">
+                <input type="text" name="import_price" id="prodPrice" class="form-control price-fmt" placeholder="VD: 1.500.000" autocomplete="off">
             </div>
             <div class="col-md-1 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus"></i></button>
@@ -166,67 +166,144 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
 
         <script>
         (function() {
-            var products = <?= json_encode($prod_json, JSON_UNESCAPED_UNICODE) ?>;
-            var input    = document.getElementById('prodComboInput');
-            var hidden   = document.getElementById('prodComboValue');
-            var dropdown = document.getElementById('prodComboDropdown');
+            var products  = <?= json_encode($prod_json, JSON_UNESCAPED_UNICODE) ?>;
+            var input     = document.getElementById('prodComboInput');
+            var hidden    = document.getElementById('prodComboValue');
+            var dropdown  = document.getElementById('prodComboDropdown');
+            var wrap      = document.getElementById('prodComboWrap');
+            var activeIdx = -1;
+
+            /* ── Helpers ─────────────────────────────────── */
+            function getItems() { return dropdown.querySelectorAll('.combo-item'); }
+
+            function showDropdown() { dropdown.style.display = 'block'; }
+            function hideDropdown() { dropdown.style.display = 'none'; activeIdx = -1; }
+
+            function setActive(idx) {
+                var items = getItems();
+                items.forEach(function(el, i) {
+                    if (i === idx) {
+                        el.style.background = '#fff3ee';
+                        el.style.fontWeight  = '600';
+                        el.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        el.style.background = '';
+                        el.style.fontWeight  = '';
+                    }
+                });
+                activeIdx = idx;
+            }
+
+            function selectItem(el) {
+                input.value  = el.textContent;
+                hidden.value = el.dataset.id;
+                input.classList.remove('is-invalid');
+                hideDropdown();
+            }
 
             function renderDropdown(list) {
+                activeIdx = -1;
                 if (!list.length) {
                     dropdown.innerHTML = '<div style="padding:8px 12px;color:#888;font-size:.9rem">Không tìm thấy sản phẩm</div>';
                 } else {
                     dropdown.innerHTML = list.map(function(p) {
                         return '<div class="combo-item" data-id="' + p.id + '" ' +
-                               'style="padding:8px 12px;cursor:pointer;font-size:.9rem;border-bottom:1px solid #f0f0f0">' +
+                               'style="padding:8px 12px;cursor:pointer;font-size:.9rem;' +
+                               'border-bottom:1px solid #f0f0f0;transition:background .1s">' +
                                p.label + '</div>';
                     }).join('');
-                    dropdown.querySelectorAll('.combo-item').forEach(function(el) {
+                    getItems().forEach(function(el, i) {
+                        // mousedown (không phải click) để không trigger blur trước
                         el.addEventListener('mousedown', function(e) {
-                            e.preventDefault(); // prevent blur before click
-                            input.value  = this.dataset.label || this.textContent;
-                            hidden.value = this.dataset.id;
-                            // store display label
-                            input.dataset.selected = this.textContent;
-                            dropdown.style.display = 'none';
+                            e.preventDefault();
+                            selectItem(this);
                         });
-                        el.addEventListener('mouseenter', function() { this.style.background = '#fff3ee'; });
-                        el.addEventListener('mouseleave', function() { this.style.background = ''; });
+                        el.addEventListener('mouseenter', function() { setActive(i); });
                     });
                 }
-                dropdown.style.display = 'block';
+                showDropdown();
             }
 
-            input.addEventListener('focus', function() {
-                var q = this.value.trim().toLowerCase();
-                var filtered = q
+            function filterAndRender() {
+                var q = input.value.trim().toLowerCase();
+                renderDropdown(q
                     ? products.filter(function(p) { return p.label.toLowerCase().includes(q); })
-                    : products;
-                renderDropdown(filtered);
-            });
+                    : products
+                );
+            }
 
+            /* ── Events ──────────────────────────────────── */
+            input.addEventListener('focus', filterAndRender);
             input.addEventListener('input', function() {
-                hidden.value = ''; // clear selection when typing
-                var q = this.value.trim().toLowerCase();
-                var filtered = q
-                    ? products.filter(function(p) { return p.label.toLowerCase().includes(q); })
-                    : products;
-                renderDropdown(filtered);
+                hidden.value = '';
+                filterAndRender();
             });
 
-            input.addEventListener('blur', function() {
-                // If nothing selected, clear field
-                setTimeout(function() { dropdown.style.display = 'none'; }, 150);
+            // Phím mũi tên lên/xuống + Enter + Escape
+            input.addEventListener('keydown', function(e) {
+                var items = getItems();
+                if (!items.length) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setActive(activeIdx < items.length - 1 ? activeIdx + 1 : 0);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActive(activeIdx > 0 ? activeIdx - 1 : items.length - 1);
+                } else if (e.key === 'Enter') {
+                    if (activeIdx >= 0 && items[activeIdx]) {
+                        e.preventDefault();
+                        selectItem(items[activeIdx]);
+                    }
+                } else if (e.key === 'Escape') {
+                    hideDropdown();
+                }
             });
 
-            // Validate: must pick from list
+            // Ẩn dropdown khi click ra ngoài wrap (không dùng blur để tránh flash)
+            document.addEventListener('mousedown', function(e) {
+                if (!wrap.contains(e.target)) {
+                    hideDropdown();
+                }
+            });
+
+            // Validate khi nhấn + — đúng thứ tự: sản phẩm → số lượng → giá nhập
             document.getElementById('addItemForm').addEventListener('submit', function(e) {
+                var qtyEl   = document.getElementById('prodQty');
+                var priceEl = document.getElementById('prodPrice');
+                var ok = true;
+
+                // 1. Sản phẩm (ưu tiên cao nhất)
                 if (!hidden.value) {
                     e.preventDefault();
-                    input.focus();
                     input.classList.add('is-invalid');
-                    input.placeholder = 'Vui lòng chọn sản phẩm từ danh sách!';
+                    input.focus();
+                    filterAndRender();
+                    ok = false;
                 } else {
                     input.classList.remove('is-invalid');
+                }
+
+                // 2. Số lượng
+                if (ok && (!qtyEl.value || parseInt(qtyEl.value) < 1)) {
+                    e.preventDefault();
+                    qtyEl.classList.add('is-invalid');
+                    qtyEl.focus();
+                    ok = false;
+                } else {
+                    qtyEl.classList.remove('is-invalid');
+                }
+
+                // 3. Giá nhập
+                if (ok) {
+                    var rawPrice = priceEl.value.replace(/\./g, '').trim();
+                    if (!rawPrice || parseFloat(rawPrice) <= 0) {
+                        e.preventDefault();
+                        priceEl.classList.add('is-invalid');
+                        priceEl.focus();
+                    } else {
+                        priceEl.classList.remove('is-invalid');
+                    }
                 }
             });
         })();
