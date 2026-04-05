@@ -153,11 +153,11 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
             </div>
             <div class="col-md-3">
                 <label class="form-label">Số lượng</label>
-                <input type="number" name="quantity" id="prodQty" class="form-control" min="1">
+                <input type="number" name="quantity" class="form-control" min="1" required>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Giá nhập (₫)</label>
-                <input type="text" name="import_price" id="prodPrice" class="form-control price-fmt" placeholder="VD: 1.500.000" autocomplete="off">
+                <input type="text" name="import_price" class="form-control price-fmt" placeholder="VD: 1.500.000" required autocomplete="off">
             </div>
             <div class="col-md-1 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus"></i></button>
@@ -267,43 +267,15 @@ $products_list = $conn->query("SELECT id,code,name FROM products WHERE status='a
                 }
             });
 
-            // Validate khi nhấn + — đúng thứ tự: sản phẩm → số lượng → giá nhập
+            // Validate khi nhấn +
             document.getElementById('addItemForm').addEventListener('submit', function(e) {
-                var qtyEl   = document.getElementById('prodQty');
-                var priceEl = document.getElementById('prodPrice');
-                var ok = true;
-
-                // 1. Sản phẩm (ưu tiên cao nhất)
                 if (!hidden.value) {
                     e.preventDefault();
                     input.classList.add('is-invalid');
                     input.focus();
-                    filterAndRender();
-                    ok = false;
+                    filterAndRender(); // hiện lại dropdown, không flash
                 } else {
                     input.classList.remove('is-invalid');
-                }
-
-                // 2. Số lượng
-                if (ok && (!qtyEl.value || parseInt(qtyEl.value) < 1)) {
-                    e.preventDefault();
-                    qtyEl.classList.add('is-invalid');
-                    qtyEl.focus();
-                    ok = false;
-                } else {
-                    qtyEl.classList.remove('is-invalid');
-                }
-
-                // 3. Giá nhập
-                if (ok) {
-                    var rawPrice = priceEl.value.replace(/\./g, '').trim();
-                    if (!rawPrice || parseFloat(rawPrice) <= 0) {
-                        e.preventDefault();
-                        priceEl.classList.add('is-invalid');
-                        priceEl.focus();
-                    } else {
-                        priceEl.classList.remove('is-invalid');
-                    }
                 }
             });
         })();
