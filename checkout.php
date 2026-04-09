@@ -33,22 +33,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!preg_match('/^0[0-9]{9,10}$/', $phone)) {
         $error = 'Số điện thoại không hợp lệ. Phải bắt đầu bằng số 0 và có 10-11 chữ số.';
     } else {
-        $order_code = generateCode('DH');
-        $stmt = $conn->prepare("INSERT INTO orders (order_code,user_id,receiver_name,receiver_phone,shipping_address,ward,district,city,payment_method,total_amount,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-        $stmt->bind_param('sisssssssds', $order_code, $user_id, $receiver, $phone, $address, $ward, $district, $city, $payment, $total, $notes);
-        if ($stmt->execute()) {
-            $order_id = $conn->insert_id;
-            foreach ($cart as $item) {
-                $pid   = (int)$item['product_id'];
-                $qty   = (int)$item['qty'];
-                $price = (float)$item['price'];
-                $conn->query("INSERT INTO order_details (order_id,product_id,quantity,unit_price) VALUES ($order_id,$pid,$qty,$price)");
-                // Không trừ tồn kho khi đặt hàng. Tồn kho chỉ bị trừ khi đơn chuyển sang "Đã giao".
+        $conn->begin_transaction();
+
+        try {
+            // 1. Tạo order trước
+            $order_code = generateCode('DH');
+            $stmtOrder = $conn->prepare("
+                INSERT INTO orders 
+                (order_code,user_id,receiver_name,receiver_phone,shipping_address,ward,district,city,payment_method,total_amount,notes) 
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            ");
+            $stmtOrder->bind_param('sisssssssds', $order_code, $user_id, $receiver, $phone, $address, $ward, $district, $city, $payment, $total, $notes);
+            
+            if (!$stmtOrder->execute()) {
+                throw new Exception("Không tạo được đơn hàng");
             }
+
+            $order_id = $conn->insert_id;
+
+            // 2. Reserve hàng
+            foreach ($cart as $item) {
+                $pid = (int)$item['product_id'];
+                $qty = (int)$item['qty'];
+
+                $stmtReserve = $conn->prepare("
+                    UPDATE products
+                    SET reserved_quantity = reserved_quantity + ?
+                    WHERE id = ?
+                    AND (stock_quantity - reserved_quantity) >= ?
+                ");
+                $stmtReserve->bind_param("iii", $qty, $pid, $qty);
+                $stmtReserve->execute();
+
+                if ($stmtReserve->affected_rows == 0) {
+                    throw new Exception("Sản phẩm ID $pid không đủ hàng");
+                }
+
+                // 3. Insert order details
+                $price = (float)$item['price'];
+                $conn->query("
+                    INSERT INTO order_details (order_id,product_id,quantity,unit_price) 
+                    VALUES ($order_id,$pid,$qty,$price)
+                ");
+            }
+
+
+            $conn->commit();
+
             $_SESSION['cart'] = [];
             redirect('checkout.php?success=' . $order_id);
-        } else {
-            $error = 'Có lỗi khi tạo đơn hàng. Vui lòng thử lại.';
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            $error = $e->getMessage();
         }
     }
 }
@@ -142,10 +179,27 @@ require_once 'includes/header.php';
                             </div>
                             <div id="newAddress" style="display:none">
                                 <div class="row g-2">
-                                    <div class="col-12"><input type="text" name="shipping_address" class="form-control" placeholder="Số nhà, tên đường"></div>
-                                    <div class="col-md-4"><input type="text" name="ward" class="form-control" placeholder="Phường/Xã"></div>
-                                    <div class="col-md-4"><input type="text" name="district" class="form-control" placeholder="Quận/Huyện"></div>
-                                    <div class="col-md-4"><input type="text" name="city" class="form-control" placeholder="Tỉnh/TP"></div>
+                                    <div class="col-12">
+                                        <input type="text" name="shipping_address" class="form-control" placeholder="Số nhà, tên đường">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <select name="city" id="city" class="form-control">
+                                            <option value="">Chọn Tỉnh/TP</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <select name="district" id="district" class="form-control">
+                                            <option value="">Chọn Quận/Huyện</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <select name="ward" id="ward" class="form-control">
+                                            <option value="">Chọn Phường/Xã</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -224,5 +278,58 @@ function validateCheckout() {
     }
     return true;
 }
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const cityEl = document.getElementById("city");
+    const districtEl = document.getElementById("district");
+    const wardEl = document.getElementById("ward");
+
+    // Load tỉnh
+    fetch('https://provinces.open-api.vn/api/p/')
+        .then(res => res.json())
+        .then(data => {
+            data.forEach(p => {
+                cityEl.innerHTML += `<option value="${p.name}" data-code="${p.code}">${p.name}</option>`;
+            });
+        });
+
+    // Khi chọn tỉnh → load quận
+    cityEl.addEventListener("change", function () {
+        const code = this.options[this.selectedIndex].dataset.code;
+
+        districtEl.innerHTML = '<option value="">Chọn Quận/Huyện</option>';
+        wardEl.innerHTML = '<option value="">Chọn Phường/Xã</option>';
+
+        if (!code) return;
+
+        fetch(`https://provinces.open-api.vn/api/p/${code}?depth=2`)
+            .then(res => res.json())
+            .then(data => {
+                data.districts.forEach(d => {
+                    districtEl.innerHTML += `<option value="${d.name}" data-code="${d.code}">${d.name}</option>`;
+                });
+            });
+    });
+
+    // Khi chọn quận → load phường
+    districtEl.addEventListener("change", function () {
+        const code = this.options[this.selectedIndex].dataset.code;
+
+        wardEl.innerHTML = '<option value="">Chọn Phường/Xã</option>';
+
+        if (!code) return;
+
+        fetch(`https://provinces.open-api.vn/api/d/${code}?depth=2`)
+            .then(res => res.json())
+            .then(data => {
+                data.wards.forEach(w => {
+                    wardEl.innerHTML += `<option value="${w.name}">${w.name}</option>`;
+                });
+            });
+    });
+
+});
 </script>
 <?php require_once 'includes/footer.php'; ?>

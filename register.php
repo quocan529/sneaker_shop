@@ -122,18 +122,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input type="text" name="address" class="form-control" value="<?= htmlspecialchars($_POST['address'] ?? '') ?>">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Phường/Xã <span class="text-danger">*</span></label>
-                                <input type="text" name="ward" class="form-control" value="<?= htmlspecialchars($_POST['ward'] ?? '') ?>">
+                                <label class="form-label">Tỉnh/Thành phố <span class="text-danger">*</span></label>
+                                <select id="city" name="city" class="form-control"></select>
                             </div>
+
                             <div class="col-md-4">
                                 <label class="form-label">Quận/Huyện <span class="text-danger">*</span></label>
-                                <input type="text" name="district" class="form-control" value="<?= htmlspecialchars($_POST['district'] ?? '') ?>">
+                                <select id="district" name="district" class="form-control"></select>
                             </div>
+
                             <div class="col-md-4">
-                                <label class="form-label">Tỉnh/Thành phố <span class="text-danger">*</span></label>
-                                <input type="text" name="city" class="form-control" value="<?= htmlspecialchars($_POST['city'] ?? '') ?>">
+                                <label class="form-label">Phường/Xã <span class="text-danger">*</span></label>
+                                <select id="ward" name="ward" class="form-control"></select>
                             </div>
-                        </div>
 
                         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
                             <i class="bi bi-person-plus me-2"></i>Đăng ký
@@ -199,6 +200,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         return true;
     }
+    </script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const city    = document.getElementById("city");
+        const district= document.getElementById("district");
+        const ward    = document.getElementById("ward");
+
+        // Load tỉnh
+        fetch("https://provinces.open-api.vn/api/p/")
+            .then(res => res.json())
+            .then(data => {
+                city.innerHTML = '<option value="">-- Chọn tỉnh/thành --</option>';
+                data.forEach(p => {
+                    city.innerHTML += `<option value="${p.name}" data-id="${p.code}">${p.name}</option>`;
+                });
+            });
+
+        // Khi chọn tỉnh → load huyện
+        city.addEventListener("change", function () {
+            const code = this.options[this.selectedIndex].dataset.id;
+
+            district.innerHTML = '<option value="">-- Chọn quận/huyện --</option>';
+
+
+            if (!code) return;
+
+            fetch(`https://provinces.open-api.vn/api/p/${code}?depth=2`)
+                .then(res => res.json())
+                .then(data => {
+                    data.districts.forEach(d => {
+                        district.innerHTML += `<option value="${d.name}" data-id="${d.code}">${d.name}</option>`;
+                    });
+                });
+        });
+
+        // Khi chọn huyện → load xã
+        district.addEventListener("change", function () {
+            const code = this.options[this.selectedIndex].dataset.id;
+
+            ward.innerHTML = '<option value="">-- Chọn phường/xã --</option>';
+
+            if (!code) return;
+
+            fetch(`https://provinces.open-api.vn/api/d/${code}?depth=2`)
+                .then(res => res.json())
+                .then(data => {
+                    data.wards.forEach(w => {
+                        ward.innerHTML += `<option value="${w.name}">${w.name}</option>`;
+                    });
+                });
+        });
+
+    });
     </script>
 </body>
 </html>

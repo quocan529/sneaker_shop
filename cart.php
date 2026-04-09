@@ -9,8 +9,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $qtys = $_POST['qty'] ?? [];
         foreach ($qtys as $idx => $qty) {
             $qty = (int)$qty;
-            if ($qty <= 0) unset($_SESSION['cart'][$idx]);
-            else $_SESSION['cart'][$idx]['qty'] = $qty;
+
+            if (!isset($_SESSION['cart'][$idx])) continue;
+
+            $pid = (int)$_SESSION['cart'][$idx]['product_id'];
+
+            $p = $conn->query("
+                SELECT stock_quantity, reserved_quantity 
+                FROM products 
+                WHERE id = $pid
+            ")->fetch_assoc();
+
+            $available = $p['stock_quantity'] - $p['reserved_quantity'];
+
+            if ($qty <= 0) {
+                unset($_SESSION['cart'][$idx]);
+            } elseif ($qty > $available) {
+                $_SESSION['cart'][$idx]['qty'] = max(1, $available);
+            } else {
+                $_SESSION['cart'][$idx]['qty'] = $qty;
+            }
         }
         $_SESSION['cart'] = array_values($_SESSION['cart']);
         redirect('cart.php?msg=updated');

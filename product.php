@@ -32,18 +32,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_cart'])) {
     }
     $qty = max(1, (int)$_POST['quantity']);
     $selected_size = sanitize($conn, $_POST['selected_size'] ?? '');
+    $available = $product['stock_quantity'] - $product['reserved_quantity'];
+
 
     if (!empty($sizes) && !$selected_size) {
         redirect('product.php?id=' . $id . '&err=size');
-    } elseif ($qty > $product['stock_quantity']) {
+    } 
+    if ($qty > $available) {
         redirect('product.php?id=' . $id . '&err=stock');
     } else {
         if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
         $cart_key = $id . '_' . $selected_size;
         $found = false;
+
+        $totalQty = 0;
+
+        if (isset($_SESSION['cart'])) {
+            foreach ($_SESSION['cart'] as $item) {
+                if ($item['product_id'] == $id) {
+                    $totalQty += $item['qty'];
+                }
+            }
+        }
+
+        // Nếu vượt stock thì không cho thêm vào giỏ hàng
+        if ($totalQty + $qty > $available) {
+            redirect('product.php?id=' . $id . '&err=stock');
+        }     
+
         foreach ($_SESSION['cart'] as &$item) {
             if ($item['cart_key'] === $cart_key) {
-                $item['qty'] = min($item['qty'] + $qty, $product['stock_quantity']);
+                $item['qty'] += $qty;
                 $found = true;
                 break;
             }
@@ -134,10 +153,10 @@ require_once 'includes/header.php';
                 </div>
 
                 <!-- Stock status -->
-                <?php if ($product['stock_quantity'] > 0): ?>
+                <?php if ($product['stock_quantity'] - $product['reserved_quantity'] > 0): ?>
                 <p class="mb-3">
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
-                        <i class="bi bi-check-circle-fill me-1"></i>Còn hàng &nbsp;·&nbsp; <?= $product['stock_quantity'] ?> <?= htmlspecialchars($product['unit']) ?>
+                        <i class="bi bi-check-circle-fill me-1"></i>Còn hàng ·&nbsp;<?= $product['stock_quantity'] - $product['reserved_quantity'] ?> <?= htmlspecialchars($product['unit']) ?>
                     </span>
                 </p>
                 <?php else: ?>
@@ -188,7 +207,7 @@ require_once 'includes/header.php';
                         <label class="fw-semibold">Số lượng:</label>
                         <div class="input-group" style="width:140px">
                             <button type="button" class="btn btn-outline-secondary" onclick="changeQty(-1)">−</button>
-                            <input type="number" id="qty" name="quantity" class="form-control text-center fw-bold" value="1" min="1" max="<?= $product['stock_quantity'] ?>">
+                            <input type="number" id="qty" name="quantity" class="form-control text-center fw-bold" value="1" min="1" max="<?= $product['stock_quantity'] - $product['reserved_quantity'] ?>"">
                             <button type="button" class="btn btn-outline-secondary" onclick="changeQty(1)">+</button>
                         </div>
                     </div>

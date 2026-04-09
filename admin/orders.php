@@ -19,23 +19,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         // Đơn đã giao thì khoá, không cho thay đổi trạng thái
         if ($oldStatus === 'delivered') {
             $msg = '<div class="alert alert-warning"><i class="bi bi-lock me-2"></i>Đơn hàng đã giao, không thể thay đổi trạng thái.</div>';
+        } else if ($oldStatus === 'cancelled') {
+            $msg = '<div class="alert alert-warning"><i class="bi bi-lock me-2"></i>Đơn hàng đã huỷ, không thể thay đổi trạng thái.</div>';    
         } else {
-            $conn->query("UPDATE orders SET status='$newStatus' WHERE id=$id");
+            // Chỉ trừ tồn kho khi chuyển sang "Đã giao" và hoàn lại hàng đã giữ khi chuyển sang "Đã huỷ"
+            $conn->begin_transaction();
 
-            // Chỉ trừ tồn kho khi chuyển sang "Đã giao"
-            if ($newStatus === 'delivered') {
+            try {
+                $conn->query("UPDATE orders SET status='$newStatus' WHERE id=$id");
+
                 $details = $conn->query("SELECT product_id, quantity FROM order_details WHERE order_id=$id");
-                while ($d = $details->fetch_assoc()) {
-                    $pid = (int)$d['product_id'];
-                    $qty = (int)$d['quantity'];
-                    $conn->query("UPDATE products SET stock_quantity = GREATEST(0, stock_quantity - $qty) WHERE id=$pid");
+
+                if ($newStatus === 'delivered') {
+                    while ($d = $details->fetch_assoc()) {
+                        $pid = (int)$d['product_id'];
+                        $qty = (int)$d['quantity'];
+
+                        $conn->query("
+                            UPDATE products 
+                            SET 
+                                stock_quantity = stock_quantity - $qty,
+                                reserved_quantity = reserved_quantity - $qty
+                            WHERE id=$pid
+                        ");
+                    }
+
+                    $msg = '<div class="alert alert-success">Đã giao hàng và trừ kho.</div>';
+
+                } elseif ($newStatus === 'cancelled') {
+                    while ($d = $details->fetch_assoc()) {
+                        $pid = (int)$d['product_id'];
+                        $qty = (int)$d['quantity'];
+
+                        $conn->query("
+                            UPDATE products 
+                            SET reserved_quantity = reserved_quantity - $qty
+                            WHERE id=$pid
+                        ");
+                    }
+
+                    $msg = '<div class="alert alert-success">Đã huỷ đơn và hoàn lại hàng đã giữ.</div>';
+                } else {
+                    $msg = '<div class="alert alert-success">Đã cập nhật trạng thái.</div>';
                 }
-                $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Đã xác nhận giao hàng và trừ tồn kho.</div>';
-            } elseif ($newStatus === 'cancelled') {
-                // Huỷ từ pending/confirmed: không cần hoàn tồn kho vì chưa trừ
-                $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Đã huỷ đơn hàng.</div>';
-            } else {
-                $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Đã cập nhật trạng thái đơn hàng.</div>';
+
+                $conn->commit();
+
+            } catch (Exception $e) {
+                $conn->rollback();
+                $msg = '<div class="alert alert-danger">Lỗi: '.$e->getMessage().'</div>';
             }
         }
     }
@@ -140,6 +172,11 @@ if ($detail_id) {
             <i class="bi bi-lock-fill fs-5"></i>
             <span>Đơn hàng đã được giao thành công. Không thể thay đổi trạng thái.</span>
         </div>
+        <?php elseif ($orderDetail['status'] === 'cancelled'): ?>
+        <div class="alert alert-danger mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-lock-fill fs-5"></i>
+            <span>Đơn hàng đã bị huỷ. Không thể chuyển sang trạng thái khác.</span>
+        </div>  
         <?php else: ?>
         <form method="POST" class="d-flex align-items-center gap-3">
             <input type="hidden" name="order_id" value="<?= $orderDetail['id'] ?>">
